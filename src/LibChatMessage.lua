@@ -36,11 +36,11 @@ local GetTimeStamp = GetTimeStamp
 local ZO_ChatEvent = ZO_ChatEvent
 
 lib.defaultSettings = {
-    timePrefixEnabled = true,
+    timePrefixEnabled = false,
     timePrefixOnRegularChat = true,
     timePrefixFormat = TIME_FORMAT_AUTO,
     shortTagPrefixEnabled = false,
-    historyEnabled = true,
+    historyEnabled = false,
     historyMaxAge = 3600,
 }
 lib.chatHistory = {}
