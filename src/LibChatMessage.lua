@@ -351,9 +351,7 @@ end
 EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(event, name)
     if(name ~= LIB_IDENTIFIER) then return end
 
-    local name = GetDisplayName()
-    local world = GetWorldName()
-    lib.saveDataKey = world .. name
+    lib.saveDataKey = GetWorldName() .. GetDisplayName()
 
     local chat = lib.Create("LibChatMessage", "LCM")
     SLASH_COMMANDS["/chatmessage"] = function(params)
