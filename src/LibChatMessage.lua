@@ -290,7 +290,7 @@ function lib:SetTimePrefixFormat(format)
     end
 end
 
---- @return returns the format used for the time prefix. see os.date and TIME_FORMAT constants for details.
+--- @return the format used for the time prefix. see os.date and TIME_FORMAT constants for details.
 function lib:GetTimePrefixFormat()
     if(self.settings) then
         return self.settings.timePrefixFormat

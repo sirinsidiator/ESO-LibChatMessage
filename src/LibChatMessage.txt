@@ -3,6 +3,7 @@
 ## Version: @VERSION_NUMBER@
 ## APIVersion: @API_VERSION@
 ## AddonVersion: @BUILD_NUMBER@
+## IsLibrary: true
 ## SavedVariables: LibChatMessageSettings LibChatMessageHistory
 ##
 ## This Add-on is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
