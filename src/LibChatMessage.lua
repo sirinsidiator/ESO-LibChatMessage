@@ -165,35 +165,6 @@ ChatEventFormatters[LIB_IDENTIFIER] = function(tag, rawMessageText)
     return formattedEventText, nil, tag, rawMessageText
 end
 
-if(GetAPIVersion() > 100029) then -- TODO unwrap
-    do
-        -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
-        -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
-        local function noop() end
-        local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
-
-        for eventId, eventFormatter in pairs(ChatEventFormatters) do
-            if(eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
-            -- cannot run our workaround for regular chat messages, or we will trigger an insecure code error on incoming whispers
-            elseif(type(eventId) == "number") then
-                -- first we unregister the existing event handler
-                EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
-                -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
-                CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-            else
-                -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
-                -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
-                EVENT_MANAGER.RegisterForEvent = noop
-                local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
-                    CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-                end)
-                EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
-                assert(success, err)
-            end
-        end
-end
-end
-
 local _, SimpleEventToCategoryMappings = ZO_ChatSystem_GetEventCategoryMappings()
 SimpleEventToCategoryMappings[LIB_IDENTIFIER] = CHAT_CATEGORY_SYSTEM
 
@@ -530,6 +501,36 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         end
     end
 
+    local formatRegularChat = lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat
+    if(GetAPIVersion() > 100029) then -- TODO unwrap
+        do
+            -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
+            -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
+            local function noop() end
+            local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
+
+            for eventId, eventFormatter in pairs(ChatEventFormatters) do
+                if(not formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
+                -- do not run our workaround for regular chat messages unless needed as it will require us to disable the new notification feature on incoming whispers
+                elseif(type(eventId) == "number") then
+                    -- first we unregister the existing event handler
+                    EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
+                    -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
+                    CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
+                else
+                    -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
+                    -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
+                    EVENT_MANAGER.RegisterForEvent = noop
+                    local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
+                        CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
+                    end)
+                    EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
+                    assert(success, err)
+                end
+            end
+    end
+    end
+
     lib.chatHistoryActive = lib.settings.historyEnabled
     if(lib.chatHistoryActive) then
         EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED, function()
@@ -571,7 +572,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
                     ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
                 end
 
-                if(GetAPIVersion() > 100029) then -- TODO unwrap
+                if(GetAPIVersion() > 100029 and not formatRegularChat) then -- TODO unwrap
                     ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
                 end
 
