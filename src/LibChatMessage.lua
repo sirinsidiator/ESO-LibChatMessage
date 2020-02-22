@@ -155,6 +155,20 @@ ChatEventFormatters[LIB_IDENTIFIER] = function(tag, rawMessageText)
     return formattedEventText, nil, tag, rawMessageText
 end
 
+if(GetAPIVersion() > 100029) then
+    do
+        -- the EVENT_MANAGER does not accept a string for the eventId, but we do not need to register with it anyways
+        -- instead we swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
+        local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
+        EVENT_MANAGER.RegisterForEvent = function() end
+        local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
+            CHAT_ROUTER:AddEventFormatter(LIB_IDENTIFIER, ChatEventFormatters[LIB_IDENTIFIER])
+        end)
+        EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
+        assert(success, err)
+    end
+end
+
 local _, SimpleEventToCategoryMappings = ZO_ChatSystem_GetEventCategoryMappings()
 SimpleEventToCategoryMappings[LIB_IDENTIFIER] = CHAT_CATEGORY_SYSTEM
 
