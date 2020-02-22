@@ -538,6 +538,12 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
             zo_callLater(function()
                 lib:ClearChat()
 
+                -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
+                local originalOnFormattedChatMessage = ZO_ChatSystem.OnFormattedChatMessage
+                if(GetAPIVersion() > 100029) then -- TODO unwrap
+                    ZO_ChatSystem.OnFormattedChatMessage = SharedChatSystem.OnFormattedChatMessage
+                end
+
                 local newHistory = {}
                 local oldHistory = LibChatMessageHistory[lib.saveDataKey]
                 local tempHistory = lib.chatHistory
@@ -563,6 +569,10 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
                     newHistory[#newHistory + 1] = tempHistory[i]
                     lib.nextEventTimeStamp = tempHistory[i][TIMESTAMP_INDEX]
                     ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
+                end
+
+                if(GetAPIVersion() > 100029) then -- TODO unwrap
+                    ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
                 end
 
                 lib.nextEventTimeStamp = nil
