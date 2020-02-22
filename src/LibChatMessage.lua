@@ -7,7 +7,6 @@ _G[LIB_IDENTIFIER] = lib
 
 local TAG_FORMAT = "[%s]"
 local COLOR_FORMAT = "|c%s%s|r"
-local MESSAGE_TEMPLATE_WITH_TIME = "%s %%s %%s"
 local MESSAGE_TEMPLATE = "%s %s"
 local SYSTEM_TAG = TAG_FORMAT:format(GetString("SI_CHATCHANNELCATEGORIES", CHAT_CATEGORY_SYSTEM))
 
@@ -25,6 +24,10 @@ for label, format in pairs(TIME_FORMAT_MAPPING) do
     REVERSE_TIME_FORMAT_MAPPING[format] = label
 end
 
+local TAG_PREFIX_OFF = 1
+local TAG_PREFIX_LONG = 2
+local TAG_PREFIX_SHORT = 3
+
 local TIMESTAMP_INDEX = 1
 local MAX_HISTORY_LENGTH = 10000
 local TRIMMED_HISTORY_LENGTH = 9000
@@ -36,10 +39,11 @@ local GetTimeStamp = GetTimeStamp
 local ZO_ChatEvent = ZO_ChatEvent
 
 lib.defaultSettings = {
+    version = 1,
     timePrefixEnabled = false,
     timePrefixOnRegularChat = true,
     timePrefixFormat = TIME_FORMAT_AUTO,
-    shortTagPrefixEnabled = false,
+    tagPrefixMode = TAG_PREFIX_LONG,
     historyEnabled = false,
     historyMaxAge = 3600,
 }
@@ -50,13 +54,6 @@ lib.chatHistoryActive = true
 
 local function GetFormattedTime(timeStamp)
     return osdate(lib.settings.timePrefixFormat, timeStamp)
-end
-
-local function GetFormatString(timeStamp)
-    if(lib.settings.timePrefixEnabled) then
-        return MESSAGE_TEMPLATE_WITH_TIME:format(GetFormattedTime(timeStamp))
-    end
-    return MESSAGE_TEMPLATE
 end
 
 local function GetTimeStampForEvent()
@@ -81,8 +78,12 @@ end
 
 local function ApplyTimeAndTagPrefix(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
     if(formattedEventText) then
-        local format = GetFormatString(timeStamp)
-        formattedEventText = format:format(SYSTEM_TAG, formattedEventText)
+        if(lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
+            formattedEventText = MESSAGE_TEMPLATE:format(SYSTEM_TAG, formattedEventText)
+        end
+        if(lib.settings.timePrefixEnabled) then
+            formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
+        end
     end
     return formattedEventText, targetChannel, fromDisplayName, rawMessageText
 end
@@ -113,6 +114,9 @@ end)
 -- ZO_ChatEvent(EVENT_BROADCAST, "test")
 PostHookFormatter(EVENT_BROADCAST, function(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
     if(formattedEventText and lib.settings.timePrefixEnabled) then
+        if(lib.settings.tagPrefixMode == TAG_PREFIX_OFF) then
+            formattedEventText = formattedEventText:gsub("%[.-%] ", "")
+        end
         formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
     end
     return formattedEventText, targetChannel, fromDisplayName, rawMessageText
@@ -150,23 +154,44 @@ ChatEventFormatters[LIB_IDENTIFIER] = function(tag, rawMessageText)
     if(not isRestoring) then
         StoreChatEvent(timeStamp, LIB_IDENTIFIER, tag, rawMessageText)
     end
-    local formatString = GetFormatString(timeStamp)
-    local formattedEventText = formatString:format(tag, rawMessageText)
+
+    local formattedEventText = rawMessageText
+    if(lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
+        formattedEventText = MESSAGE_TEMPLATE:format(tag, formattedEventText)
+    end
+    if(lib.settings.timePrefixEnabled) then
+        formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
+    end
     return formattedEventText, nil, tag, rawMessageText
 end
 
-if(GetAPIVersion() > 100029) then
+if(GetAPIVersion() > 100029) then -- TODO unwrap
     do
-        -- the EVENT_MANAGER does not accept a string for the eventId, but we do not need to register with it anyways
-        -- instead we swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
+        -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
+        -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
+        local function noop() end
         local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
-        EVENT_MANAGER.RegisterForEvent = function() end
-        local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
-            CHAT_ROUTER:AddEventFormatter(LIB_IDENTIFIER, ChatEventFormatters[LIB_IDENTIFIER])
-        end)
-        EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
-        assert(success, err)
-    end
+
+        for eventId, eventFormatter in pairs(ChatEventFormatters) do
+            if(eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
+            -- cannot run our workaround for regular chat messages, or we will trigger an insecure code error on incoming whispers
+            elseif(type(eventId) == "number") then
+                -- first we unregister the existing event handler
+                EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
+                -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
+                CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
+            else
+                -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
+                -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
+                EVENT_MANAGER.RegisterForEvent = noop
+                local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
+                    CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
+                end)
+                EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
+                assert(success, err)
+            end
+        end
+end
 end
 
 local _, SimpleEventToCategoryMappings = ZO_ChatSystem_GetEventCategoryMappings()
@@ -201,7 +226,7 @@ end
 --- Internal method to retrieve the colored tag. Resets the tag color when called.
 --- @return string, the colored tag
 function ChatProxy:GetTag()
-    local tag = lib.settings.shortTagPrefixEnabled and self.shortTag or self.longTag
+    local tag = lib.settings.tagPrefixMode == TAG_PREFIX_SHORT and self.shortTag or self.longTag
     tag = TAG_FORMAT:format(tag)
     if(self.tagColor) then
         tag = COLOR_FORMAT:format(self.tagColor, tag)
@@ -312,19 +337,36 @@ function lib:GetTimePrefixFormat()
     return self.defaultSettings.timePrefixFormat
 end
 
---- @param enabled - controls if add-ons should print a long or short tag prefix for their messages.
-function lib:SetShortTagPrefixEnabled(enabled)
+lib.TAG_PREFIX_OFF = TAG_PREFIX_OFF
+lib.TAG_PREFIX_LONG = TAG_PREFIX_LONG
+lib.TAG_PREFIX_SHORT = TAG_PREFIX_SHORT
+
+--- @param mode - controls how add-ons should print the tag prefix for their messages.
+--- Turning it off will still save the long tag in case the history is enabled
+function lib:SetTagPrefixMode(mode)
     if(self.settings) then
-        self.settings.shortTagPrefixEnabled = enabled
+        self.settings.tagPrefixMode = mode
     end
 end
 
---- @return true, if add-ons should print a short tag prefix for their messages.
-function lib:IsShortTagPrefixEnabled()
+--- @return The mode how add-ons should print the tag prefix for their messages.
+function lib:GetTagPrefixMode()
     if(self.settings) then
-        return self.settings.shortTagPrefixEnabled
+        return self.settings.tagPrefixMode
     end
-    return self.defaultSettings.shortTagPrefixEnabled
+    return self.defaultSettings.tagPrefixMode
+end
+
+--- @param enabled - controls if add-ons should print a long or short tag prefix for their messages.
+--- @deprecated - use SetTagPrefixMode instead
+function lib:SetShortTagPrefixEnabled(enabled)
+    self:SetTagPrefixMode(enabled and TAG_PREFIX_SHORT or TAG_PREFIX_LONG)
+end
+
+--- @return true, if add-ons should print a short tag prefix for their messages.
+--- @deprecated - use GetTagPrefixMode instead
+function lib:IsShortTagPrefixEnabled()
+    return self:GetTagPrefixMode() == TAG_PREFIX_SHORT
 end
 
 --- @param enabled - controls if the chat history should be enabled on the next UI load.
@@ -413,14 +455,22 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
             handled = true
         elseif(command == "tag") then
             if(arg == "short") then
-                lib:SetShortTagPrefixEnabled(true)
+                lib:SetTagPrefixMode(TAG_PREFIX_SHORT)
                 chat:Print("Set tag prefix to short format")
             elseif(arg == "long") then
-                lib:SetShortTagPrefixEnabled(false)
+                lib:SetTagPrefixMode(TAG_PREFIX_LONG)
                 chat:Print("Set tag prefix to long format")
+            elseif(arg == "off") then
+                lib:SetTagPrefixMode(TAG_PREFIX_OFF)
+                chat:Print("Disabled showing a tag prefix")
             else
-                local enabled = lib:IsShortTagPrefixEnabled()
-                chat:Printf("Tag prefix is currently set to %s format", enabled and "short" or "long")
+                local mode = lib:GetTagPrefixMode()
+                if(mode == TAG_PREFIX_OFF) then
+                    chat:Print("Tag prefix is currently disabled")
+                else
+                    local enabled = (mode == TAG_PREFIX_SHORT)
+                    chat:Printf("Tag prefix is currently set to %s format", enabled and "short" or "long")
+                end
             end
             handled = true
         elseif(command == "history") then
@@ -451,20 +501,13 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         if(not handled) then
             local out = {}
             out[#out + 1] = "/chatmessage <command> [argument]"
-            out[#out + 1] = "- <time>      [on/off]"
-            out[#out + 1] = "-     Enables or disables the time prefix"
-            out[#out + 1] = "- <chat>      [on/off]"
-            out[#out + 1] = "-     Controls the time prefix on regular chat"
-            out[#out + 1] = "- <format>    [auto/12h/24h]"
-            out[#out + 1] = "-     Changes the used time format"
-            out[#out + 1] = "- <tag>       [short/long]"
-            out[#out + 1] = "-     Changes the length of the used tag"
-            out[#out + 1] = "- <history>   [on/off]"
-            out[#out + 1] = "-     Restore old chat after login"
-            out[#out + 1] = "- <age>       [seconds]"
-            out[#out + 1] = "-     The maximum age of restored chat"
-            out[#out + 1] = "-"
-            out[#out + 1] = "- Example: /chatmessage tag short"
+            out[#out + 1] = "<time>|u50:0:   :|u[on/off]|u105:0:       :|uEnables or disables the time prefix"
+            out[#out + 1] = "<chat>|u49:0:   :|u[on/off]|u105:0:       :|uShow time prefix on regular chat"
+            out[#out + 1] = "<format>|u27:0: :|u[auto/12h/24h]|u31:0:  :|uChanges the time format used"
+            out[#out + 1] = "<tag>|u62:0:    :|u[off/short/long]|u25:0::|uControls how a message is tagged"
+            out[#out + 1] = "<history>|u23:0::|u[on/off]|u105:0:       :|uRestore old chat after login"
+            out[#out + 1] = "<age>|u56:0:    :|u[seconds]|u78:0:       :|uThe maximum age of restored chat"
+            out[#out + 1] = "Example: /chatmessage tag short"
             chat:Print(tconcat(out, "\n"))
         end
     end
@@ -474,6 +517,18 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
 
     lib.settings = LibChatMessageSettings[lib.saveDataKey] or ZO_ShallowTableCopy(lib.defaultSettings)
     LibChatMessageSettings[lib.saveDataKey] = lib.settings
+
+    for key, value in pairs(lib.defaultSettings) do
+        if(lib.settings[key] == nil) then
+            lib.settings[key] = value
+        end
+    end
+
+    for key in pairs(lib.settings) do
+        if(lib.defaultSettings[key] == nil) then
+            lib.settings[key] = nil
+        end
+    end
 
     lib.chatHistoryActive = lib.settings.historyEnabled
     if(lib.chatHistoryActive) then
