@@ -502,88 +502,93 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     end
 
     lib.chatHistoryActive = lib.settings.historyEnabled
-
     local formatRegularChat = lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat
     local originalOnFormattedChatMessage = ZO_ChatSystem.OnFormattedChatMessage
-    if(GetAPIVersion() > 100029) then
-        -- TODO unwrap
-        do
-            if(lib.chatHistoryActive or formatRegularChat) then
-                -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
-                ZO_ChatSystem.OnFormattedChatMessage = nil
-            end
 
-            -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
-            -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
-            local function noop() end
-            local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
+    local function ReinitializeChatFormatters()
+        if(GetAPIVersion() <= 100029) then return end -- TODO remove
 
-            for eventId, eventFormatter in pairs(ChatEventFormatters) do
-                if(not formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
-                -- do not run our workaround for regular chat messages unless needed as it will require us to disable the new notification feature on incoming whispers
-                elseif(type(eventId) == "number") then
-                    -- first we unregister the existing event handler
-                    EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
-                    -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
+        if(lib.chatHistoryActive or formatRegularChat) then
+            -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
+            ZO_ChatSystem.OnFormattedChatMessage = nil
+        end
+
+        -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
+        -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
+        local function noop() end
+        local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
+
+        for eventId, eventFormatter in pairs(ChatEventFormatters) do
+            if(not formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
+            -- do not run our workaround for regular chat messages unless needed as it will require us to disable the new notification feature on incoming whispers
+            elseif(type(eventId) == "number") then
+                -- first we unregister the existing event handler
+                EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
+                -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
+                CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
+            else
+                -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
+                -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
+                EVENT_MANAGER.RegisterForEvent = noop
+                local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
                     CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-                else
-                    -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
-                    -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
-                    EVENT_MANAGER.RegisterForEvent = noop
-                    local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
-                        CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-                    end)
-                    EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
-                    assert(success, err)
-                end
+                end)
+                EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
+                assert(success, err)
             end
         end
     end
 
-    if(lib.chatHistoryActive) then
-        EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED, function()
-            EVENT_MANAGER:UnregisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED)
-            -- make sure we restore it after other addons had a chance to set up their formatters
-            zo_callLater(function()
-                lib:ClearChat()
+    local function RestoreChatHistory()
+        if(not lib.chatHistoryActive) then return end
+        lib:ClearChat()
 
-                local newHistory = {}
-                local oldHistory = LibChatMessageHistory[lib.saveDataKey]
-                local tempHistory = lib.chatHistory
-                if(oldHistory) then
-                    local ageThreshold = GetTimeStamp() - lib.settings.historyMaxAge
-                    for i = 1, #oldHistory do
-                        local timeStamp = oldHistory[i][TIMESTAMP_INDEX]
-                        if(timeStamp > ageThreshold) then
-                            newHistory[#newHistory + 1] = oldHistory[i]
-                            lib.nextEventTimeStamp = timeStamp
-                            ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(oldHistory[i])))
-                        end
-                    end
+        local newHistory = {}
+        local oldHistory = LibChatMessageHistory[lib.saveDataKey]
+        local tempHistory = lib.chatHistory
+        if(oldHistory) then
+            local ageThreshold = GetTimeStamp() - lib.settings.historyMaxAge
+            for i = 1, #oldHistory do
+                local timeStamp = oldHistory[i][TIMESTAMP_INDEX]
+                if(timeStamp > ageThreshold) then
+                    newHistory[#newHistory + 1] = oldHistory[i]
+                    lib.nextEventTimeStamp = timeStamp
+                    ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(oldHistory[i])))
                 end
+            end
+        end
 
-                if(lib.nextEventTimeStamp ~= nil) then
-                    -- small hack to avoid storing the message in the history
-                    lib.nextEventTimeStamp = GetTimeStamp()
-                    chat:Print("End of restored chat history")
-                end
+        if(lib.nextEventTimeStamp ~= nil) then
+            -- small hack to avoid storing the message in the history
+            lib.nextEventTimeStamp = GetTimeStamp()
+            chat:Print("End of restored chat history")
+        end
 
-                for i = 1, #tempHistory do
-                    newHistory[#newHistory + 1] = tempHistory[i]
-                    lib.nextEventTimeStamp = tempHistory[i][TIMESTAMP_INDEX]
-                    ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
-                end
+        for i = 1, #tempHistory do
+            newHistory[#newHistory + 1] = tempHistory[i]
+            lib.nextEventTimeStamp = tempHistory[i][TIMESTAMP_INDEX]
+            ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
+        end
 
-                lib.nextEventTimeStamp = nil
-                lib.chatHistory = newHistory
-                LibChatMessageHistory[lib.saveDataKey] = newHistory
+        lib.nextEventTimeStamp = nil
+        lib.chatHistory = newHistory
+        LibChatMessageHistory[lib.saveDataKey] = newHistory
 
-                if(GetAPIVersion() > 100029 and not formatRegularChat) then -- TODO unwrap
-                    ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
-                end
-            end, 0)
-        end)
-    else
+        if(GetAPIVersion() > 100029 and not formatRegularChat) then -- TODO unwrap
+            ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
+        end
+    end
+
+    EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED, function()
+        EVENT_MANAGER:UnregisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED)
+        -- make sure we restore it after other addons had a chance to set up their formatters
+        zo_callLater(function()
+            ReinitializeChatFormatters()
+            RestoreChatHistory()
+        end, 0)
+    end)
+
+    if(not lib.chatHistoryActive) then
         lib:ClearHistory()
     end
 end)
