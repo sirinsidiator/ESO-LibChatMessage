@@ -508,8 +508,6 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     local originalOnFormattedChatMessage = ZO_ChatSystem.OnFormattedChatMessage
 
     local function ReinitializeChatFormatters()
-        if(GetAPIVersion() <= 100029) then return end -- TODO remove
-
         if(lib.chatHistoryActive or lib.formatRegularChat) then
             -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
             ZO_ChatSystem.OnFormattedChatMessage = nil
@@ -576,7 +574,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         lib.chatHistory = newHistory
         LibChatMessageHistory[lib.saveDataKey] = newHistory
 
-        if(GetAPIVersion() > 100029 and not lib.formatRegularChat) then -- TODO unwrap
+        if(not lib.formatRegularChat) then
             ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
         end
     end
