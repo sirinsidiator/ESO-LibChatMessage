@@ -472,12 +472,12 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         if(not handled) then
             local out = {}
             out[#out + 1] = "/chatmessage <command> [argument]"
-            out[#out + 1] = "<time>|u50:0:   :|u[on/off]|u105:0:       :|uEnables or disables the time prefix"
-            out[#out + 1] = "<chat>|u49:0:   :|u[on/off]|u105:0:       :|uShow time prefix on regular chat"
-            out[#out + 1] = "<format>|u27:0: :|u[auto/12h/24h]|u31:0:  :|uChanges the time format used"
-            out[#out + 1] = "<tag>|u62:0:    :|u[off/short/long]|u25:0::|uControls how a message is tagged"
-            out[#out + 1] = "<history>|u23:0::|u[on/off]|u105:0:       :|uRestore old chat after login"
-            out[#out + 1] = "<age>|u56:0:    :|u[seconds]|u78:0:       :|uThe maximum age of restored chat"
+            out[#out + 1] = "<time>|u129%:0:  :|u[on/off]|u286%:0:       :|uEnables or disables the time prefix"
+            out[#out + 1] = "<chat>|u125%:0:  :|u[on/off]|u288%:0:       :|uShow time prefix on regular chat"
+            out[#out + 1] = "<format>|u62%:0: :|u[auto/12h/24h]|u68%:0:  :|uChanges the time format used"
+            out[#out + 1] = "<tag>|u165%:0:   :|u[off/short/long]|u50%:0::|uControls how a message is tagged"
+            out[#out + 1] = "<history>|u50%:0::|u[on/off]|u286%:0:       :|uRestore old chat after login"
+            out[#out + 1] = "<age>|u147%:0:   :|u[seconds]|u200%:0:      :|uThe maximum age of restored chat"
             out[#out + 1] = "Example: /chatmessage tag short"
             chat:Print(tconcat(out, "\n"))
         end
