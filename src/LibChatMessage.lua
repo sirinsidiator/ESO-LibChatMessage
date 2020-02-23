@@ -502,13 +502,15 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     end
 
     lib.chatHistoryActive = lib.settings.historyEnabled
-    local formatRegularChat = lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat
+    if(lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat) then
+        lib.formatRegularChat = true
+    end
     local originalOnFormattedChatMessage = ZO_ChatSystem.OnFormattedChatMessage
 
     local function ReinitializeChatFormatters()
         if(GetAPIVersion() <= 100029) then return end -- TODO remove
 
-        if(lib.chatHistoryActive or formatRegularChat) then
+        if(lib.chatHistoryActive or lib.formatRegularChat) then
             -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
             ZO_ChatSystem.OnFormattedChatMessage = nil
         end
@@ -519,7 +521,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
 
         for eventId, eventFormatter in pairs(ChatEventFormatters) do
-            if(not formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
+            if(not lib.formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
             -- do not run our workaround for regular chat messages unless needed as it will require us to disable the new notification feature on incoming whispers
             elseif(type(eventId) == "number") then
                 -- first we unregister the existing event handler
@@ -574,7 +576,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         lib.chatHistory = newHistory
         LibChatMessageHistory[lib.saveDataKey] = newHistory
 
-        if(GetAPIVersion() > 100029 and not formatRegularChat) then -- TODO unwrap
+        if(GetAPIVersion() > 100029 and not lib.formatRegularChat) then -- TODO unwrap
             ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
         end
     end
