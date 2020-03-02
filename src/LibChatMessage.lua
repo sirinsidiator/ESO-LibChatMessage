@@ -78,10 +78,10 @@ end
 
 local function ApplyTimeAndTagPrefix(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
     if(formattedEventText) then
-        if(lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
+        if(lib.settings and lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
             formattedEventText = MESSAGE_TEMPLATE:format(SYSTEM_TAG, formattedEventText)
         end
-        if(lib.settings.timePrefixEnabled) then
+        if(lib.settings and lib.settings.timePrefixEnabled) then
             formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
         end
     end
@@ -104,7 +104,7 @@ end
 
 -- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_CHAT_MESSAGE_CHANNEL, CHAT_CHANNEL_SAY, "test", "test", false, "test")
 PostHookFormatter(EVENT_CHAT_MESSAGE_CHANNEL, function(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
-    if(formattedEventText and lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat) then
+    if(formattedEventText and lib.settings and lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat) then
         formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
     end
     return formattedEventText, targetChannel, fromDisplayName, rawMessageText
@@ -112,7 +112,7 @@ end)
 
 -- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_BROADCAST, "test")
 PostHookFormatter(EVENT_BROADCAST, function(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
-    if(formattedEventText and lib.settings.timePrefixEnabled) then
+    if(formattedEventText and lib.settings and lib.settings.timePrefixEnabled) then
         if(lib.settings.tagPrefixMode == TAG_PREFIX_OFF) then
             formattedEventText = formattedEventText:gsub("%[.-%] ", "")
         end
@@ -157,10 +157,10 @@ CHAT_ROUTER:RegisterMessageFormatter(LIB_IDENTIFIER, function(tag, rawMessageTex
     end
 
     local formattedEventText = rawMessageText
-    if(lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
+    if(lib.settings and lib.settings.tagPrefixMode ~= TAG_PREFIX_OFF) then
         formattedEventText = MESSAGE_TEMPLATE:format(tag, formattedEventText)
     end
-    if(lib.settings.timePrefixEnabled) then
+    if(lib.settings and lib.settings.timePrefixEnabled) then
         formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
     end
     return formattedEventText, nil, tag, rawMessageText
@@ -195,7 +195,7 @@ end
 --- Internal method to retrieve the colored tag. Resets the tag color when called.
 --- @return string, the colored tag
 function ChatProxy:GetTag()
-    local tag = lib.settings.tagPrefixMode == TAG_PREFIX_SHORT and self.shortTag or self.longTag
+    local tag = (lib.settings and lib.settings.tagPrefixMode == TAG_PREFIX_SHORT) and self.shortTag or self.longTag
     tag = TAG_FORMAT:format(tag)
     if(self.tagColor) then
         tag = COLOR_FORMAT:format(self.tagColor, tag)
