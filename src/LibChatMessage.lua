@@ -36,7 +36,7 @@ local strlower = string.lower
 local tconcat = table.concat
 local osdate = os.date
 local GetTimeStamp = GetTimeStamp
-local ZO_ChatEvent = ZO_ChatEvent
+local CHAT_ROUTER = CHAT_ROUTER
 
 lib.defaultSettings = {
     version = 1,
@@ -89,11 +89,10 @@ local function ApplyTimeAndTagPrefix(formattedEventText, targetChannel, fromDisp
 end
 
 -- chat system hooks
-local ChatEventFormatters = ZO_ChatSystem_GetEventHandlers()
-
+local messageFormatters = CHAT_ROUTER:GetRegisteredMessageFormatters()
 local function PostHookFormatter(eventType, postHook)
-    local originalFormatter = ChatEventFormatters[eventType]
-    ChatEventFormatters[eventType] = function(...)
+    local originalFormatter = messageFormatters[eventType]
+    messageFormatters[eventType] = function(...)
         local timeStamp, isRestoring = GetTimeStampForEvent()
         if(not isRestoring) then
             StoreChatEvent(timeStamp, eventType, ...)
@@ -103,7 +102,7 @@ local function PostHookFormatter(eventType, postHook)
     end
 end
 
--- ZO_ChatEvent(EVENT_CHAT_MESSAGE_CHANNEL, CHAT_CHANNEL_SAY, "test", "test", false, "test")
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_CHAT_MESSAGE_CHANNEL, CHAT_CHANNEL_SAY, "test", "test", false, "test")
 PostHookFormatter(EVENT_CHAT_MESSAGE_CHANNEL, function(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
     if(formattedEventText and lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat) then
         formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
@@ -111,7 +110,7 @@ PostHookFormatter(EVENT_CHAT_MESSAGE_CHANNEL, function(formattedEventText, targe
     return formattedEventText, targetChannel, fromDisplayName, rawMessageText
 end)
 
--- ZO_ChatEvent(EVENT_BROADCAST, "test")
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_BROADCAST, "test")
 PostHookFormatter(EVENT_BROADCAST, function(formattedEventText, targetChannel, fromDisplayName, rawMessageText, timeStamp)
     if(formattedEventText and lib.settings.timePrefixEnabled) then
         if(lib.settings.tagPrefixMode == TAG_PREFIX_OFF) then
@@ -122,47 +121,36 @@ PostHookFormatter(EVENT_BROADCAST, function(formattedEventText, targetChannel, f
     return formattedEventText, targetChannel, fromDisplayName, rawMessageText
 end)
 
--- ZO_ChatEvent(EVENT_FRIEND_PLAYER_STATUS_CHANGED, "test", "test", PLAYER_STATUS_OFFLINE, PLAYER_STATUS_ONLINE)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_FRIEND_PLAYER_STATUS_CHANGED, "test", "test", PLAYER_STATUS_OFFLINE, PLAYER_STATUS_ONLINE)
 PostHookFormatter(EVENT_FRIEND_PLAYER_STATUS_CHANGED, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_IGNORE_ADDED, "test")
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_IGNORE_ADDED, "test")
 PostHookFormatter(EVENT_IGNORE_ADDED, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_IGNORE_REMOVED, "test")
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_IGNORE_REMOVED, "test")
 PostHookFormatter(EVENT_IGNORE_REMOVED, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_GROUP_TYPE_CHANGED, false)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_GROUP_TYPE_CHANGED, false)
 PostHookFormatter(EVENT_GROUP_TYPE_CHANGED, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_GROUP_INVITE_RESPONSE, "test", GROUP_INVITE_RESPONSE_PLAYER_NOT_FOUND, "test")
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_GROUP_INVITE_RESPONSE, "test", GROUP_INVITE_RESPONSE_PLAYER_NOT_FOUND, "test")
 PostHookFormatter(EVENT_GROUP_INVITE_RESPONSE, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_SOCIAL_ERROR, SOCIAL_RESULT_ACCOUNT_NOT_FOUND)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_SOCIAL_ERROR, SOCIAL_RESULT_ACCOUNT_NOT_FOUND)
 PostHookFormatter(EVENT_SOCIAL_ERROR, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_TRIAL_FEATURE_RESTRICTED, TRIAL_RESTRICTION_CANNOT_WHISPER)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_TRIAL_FEATURE_RESTRICTED, TRIAL_RESTRICTION_CANNOT_WHISPER)
 PostHookFormatter(EVENT_TRIAL_FEATURE_RESTRICTED, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_GROUP_MEMBER_LEFT, "test", GROUP_LEAVE_REASON_KICKED, true, false, "test", true)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_GROUP_MEMBER_LEFT, "test", GROUP_LEAVE_REASON_KICKED, true, false, "test", true)
 PostHookFormatter(EVENT_GROUP_MEMBER_LEFT, ApplyTimeAndTagPrefix)
 
--- ZO_ChatEvent(EVENT_BATTLEGROUND_INACTIVITY_WARNING)
+-- CHAT_ROUTER:FormatAndAddChatMessage(EVENT_BATTLEGROUND_INACTIVITY_WARNING)
 PostHookFormatter(EVENT_BATTLEGROUND_INACTIVITY_WARNING, ApplyTimeAndTagPrefix)
 
-local function noop() end
-local originalRegisterForEvent = EVENT_MANAGER.RegisterForEvent
-local function SafeAddEventFormatter(eventId, eventFormatter)
-    -- the EVENT_MANAGER does not accept a string for the eventId, so we have to prevent the call or an error will occur
-    -- as a result we don't need to unregister anything and simply swap RegisterForEvent with a dummy while we call CHAT_ROUTER:AddEventFormatter
-    EVENT_MANAGER.RegisterForEvent = noop
-    local success, err = pcall(function() -- wrap in a pcall so we can safely swap it back regardless of what happens in AddEventFormatter
-        CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-    end)
-    EVENT_MANAGER.RegisterForEvent = originalRegisterForEvent
-    assert(success, err)
-end
-
-ChatEventFormatters[LIB_IDENTIFIER] = function(tag, rawMessageText)
+local _, SimpleEventToCategoryMappings = ZO_ChatSystem_GetEventCategoryMappings()
+SimpleEventToCategoryMappings[LIB_IDENTIFIER] = CHAT_CATEGORY_SYSTEM
+CHAT_ROUTER:RegisterMessageFormatter(LIB_IDENTIFIER, function(tag, rawMessageText)
     local timeStamp, isRestoring = GetTimeStampForEvent()
     if(not isRestoring) then
         StoreChatEvent(timeStamp, LIB_IDENTIFIER, tag, rawMessageText)
@@ -176,12 +164,7 @@ ChatEventFormatters[LIB_IDENTIFIER] = function(tag, rawMessageText)
         formattedEventText = MESSAGE_TEMPLATE:format(GetFormattedTime(timeStamp), formattedEventText)
     end
     return formattedEventText, nil, tag, rawMessageText
-end
--- need to add it here already, otherwise addons which try to print before the formatter is reinitialized will produce errors
-SafeAddEventFormatter(LIB_IDENTIFIER, ChatEventFormatters[LIB_IDENTIFIER])
-
-local _, SimpleEventToCategoryMappings = ZO_ChatSystem_GetEventCategoryMappings()
-SimpleEventToCategoryMappings[LIB_IDENTIFIER] = CHAT_CATEGORY_SYSTEM
+end)
 
 -- chat proxy
 local ChatProxy = ZO_Object:Subclass()
@@ -226,7 +209,7 @@ end
 function ChatProxy:Print(message)
     if(not self.enabled) then return end
     local tag = self:GetTag()
-    ZO_ChatEvent(LIB_IDENTIFIER, tag, message)
+    CHAT_ROUTER:FormatAndAddChatMessage(LIB_IDENTIFIER, tag, message)
 end
 
 --- Method to a print formatted messages to chat. The message will automatically be prefixed with the time and tag based on user preferences.
@@ -235,7 +218,7 @@ end
 function ChatProxy:Printf(formatString, ...)
     if(not self.enabled) then return end
     local tag = self:GetTag()
-    ZO_ChatEvent(LIB_IDENTIFIER, tag, formatString:format(...))
+    CHAT_ROUTER:FormatAndAddChatMessage(LIB_IDENTIFIER, tag, formatString:format(...))
 end
 
 --- setter to turn this proxy  off, so it no longer print anything to chat when one of its methods is called.
@@ -517,32 +500,6 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     end
 
     lib.chatHistoryActive = lib.settings.historyEnabled
-    if(lib.settings.timePrefixEnabled and lib.settings.timePrefixOnRegularChat) then
-        lib.formatRegularChat = true
-    end
-    local originalOnFormattedChatMessage = ZO_ChatSystem.OnFormattedChatMessage
-
-    local function ReinitializeChatFormatters()
-        if(lib.chatHistoryActive or lib.formatRegularChat) then
-            -- need to suppress the call to FlashTaskbarWindow in keyboardchatsystem.lua, or we'll end up with an insecure code error when we try to restore incoming whispers
-            ZO_ChatSystem.OnFormattedChatMessage = nil
-        end
-
-        -- the chat router wraps the formatters in a closure, so our changes are not used without re-adding the formatters
-        -- hopefully ZOS will fix that shortcoming in some way and provide a clean solution for addons to modify the formatters easily
-        for eventId, eventFormatter in pairs(ChatEventFormatters) do
-            if(not lib.formatRegularChat and eventId == EVENT_CHAT_MESSAGE_CHANNEL) then
-            -- do not run our workaround for regular chat messages unless needed as it will require us to disable the new notification feature on incoming whispers
-            elseif(type(eventId) == "number") then
-                -- first we unregister the existing event handler
-                EVENT_MANAGER:UnregisterForEvent("ChatRouter", eventId)
-                -- then we rerun AddEventFormatter which restores the handlers but with our hooked version
-                CHAT_ROUTER:AddEventFormatter(eventId, eventFormatter)
-            else
-                SafeAddEventFormatter(eventId, eventFormatter)
-            end
-        end
-    end
 
     local function RestoreChatHistory()
         if(not lib.chatHistoryActive) then return end
@@ -558,7 +515,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
                 if(timeStamp > ageThreshold) then
                     newHistory[#newHistory + 1] = oldHistory[i]
                     lib.nextEventTimeStamp = timeStamp
-                    ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(oldHistory[i])))
+                    CHAT_ROUTER:FormatAndAddChatMessage(select(TIMESTAMP_INDEX + 1, unpack(oldHistory[i])))
                 end
             end
         end
@@ -572,25 +529,18 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         for i = 1, #tempHistory do
             newHistory[#newHistory + 1] = tempHistory[i]
             lib.nextEventTimeStamp = tempHistory[i][TIMESTAMP_INDEX]
-            ZO_ChatEvent(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
+            CHAT_ROUTER:FormatAndAddChatMessage(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
         end
 
         lib.nextEventTimeStamp = nil
         lib.chatHistory = newHistory
         LibChatMessageHistory[lib.saveDataKey] = newHistory
-
-        if(not lib.formatRegularChat) then
-            ZO_ChatSystem.OnFormattedChatMessage = originalOnFormattedChatMessage
-        end
     end
 
     EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED, function()
         EVENT_MANAGER:UnregisterForEvent(LIB_IDENTIFIER, EVENT_PLAYER_ACTIVATED)
         -- make sure we restore it after other addons had a chance to set up their formatters
-        zo_callLater(function()
-            ReinitializeChatFormatters()
-            RestoreChatHistory()
-        end, 0)
+        zo_callLater(RestoreChatHistory, 0)
     end)
 
     if(not lib.chatHistoryActive) then
