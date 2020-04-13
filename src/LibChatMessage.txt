@@ -3,6 +3,7 @@
 ## Version: @VERSION_NUMBER@
 ## APIVersion: @API_VERSION@
 ## AddOnVersion: @BUILD_NUMBER@
+## OptionalDependsOn: LibDebugLogger>=126
 ## IsLibrary: true
 ## SavedVariables: LibChatMessageSettings LibChatMessageHistory
 ##
@@ -12,4 +13,33 @@
 ##
 ## You can read the full terms at https://account.elderscrollsonline.com/add-on-terms
 
-LibChatMessage.lua
+StartUp.lua
+
+generator/GeneratorBase.lua
+generator/SimpleGenerator.lua
+generator/TimeGenerator.lua
+generator/TagGenerator.lua
+generator/ChatNameGenerator.lua
+generator/PlayerLinkGenerator.lua
+generator/ConcatGenerator.lua
+
+formatter/FormatterBase.lua
+formatter/ChatMessageFormatter.lua
+formatter/TaggedMessageFormatter.lua
+formatter/PlayerStatusFormatter.lua
+formatter/IgnoreStatusFormatter.lua
+formatter/GroupTypeFormatter.lua
+formatter/GroupInviteFormatter.lua
+formatter/SocialErrorFormatter.lua
+formatter/TrialRestrictionFormatter.lua
+formatter/GroupKickFormatter.lua
+formatter/BattlegroundInactivityFormatter.lua
+formatter/ChatProxyFormatter.lua
+
+ChatProxy.lua
+
+Callbacks.lua
+API.lua
+Formatters.lua
+Settings.lua
+ChatHistory.lua
