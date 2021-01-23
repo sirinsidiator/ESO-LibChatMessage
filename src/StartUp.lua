@@ -37,5 +37,6 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     local internal = lib.internal
     internal.chat = lib.Create("LibChatMessage", "LCM", LIB_IDENTIFIER)
     local settings = internal:InitializeSettings()
+    internal:InitializeSelectableFunctionRegistry(settings)
     internal:InitializeHistory(settings)
 end)

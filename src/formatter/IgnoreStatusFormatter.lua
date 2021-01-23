@@ -2,6 +2,8 @@ local lib = LibChatMessage
 local internal = lib.internal
 local TaggedMessageFormatter = internal.class.TaggedMessageFormatter
 
+local PATH_ID_TEMPLATE = "%s.%s"
+
 local IgnoreStatusFormatter = TaggedMessageFormatter:Subclass()
 internal.class.IgnoreStatusFormatter = IgnoreStatusFormatter
 
@@ -9,10 +11,10 @@ function IgnoreStatusFormatter:New(...)
     return TaggedMessageFormatter.New(self, ...)
 end
 
-function IgnoreStatusFormatter:Initialize(systemTag, stringId)
-    TaggedMessageFormatter.Initialize(self, systemTag)
+function IgnoreStatusFormatter:Initialize(pathId, systemTag, stringId)
+    TaggedMessageFormatter.Initialize(self, pathId, systemTag)
     self.stringId = stringId
-    self.generators.displayNameLink = internal.class.PlayerLinkGenerator:New()
+    self.generators.displayNameLink = internal.class.PlayerLinkGenerator:New(PATH_ID_TEMPLATE:format(pathId, "namelink"), self)
 end
 
 function IgnoreStatusFormatter:CanFormat(eventId, eventTime, displayName)

@@ -13,14 +13,20 @@ lib.GetAPIVersion = function() return 2 end
 --- @param shortTag - a string identifier that is used to identify messages printed via this object. e.g. MCA
 --- @param identifier - an optional string identifier that is used to register the proxy with the library. If not specified the longTag is used
 --- @return a new chat proxy instance with the passed tags. See ChatProxy.lua for details.
-function lib.Create(longTag, shortTag, identifier)
+function lib:Create(longTag, shortTag, identifier)
+    if(self ~= lib) then -- this is so both calling lib.Create and lib:Create work
+        identifier = shortTag
+        shortTag = longTag
+        longTag = self
+    end
+
     identifier = identifier or longTag
     if(not internal.proxyCache[identifier]) then
         internal.proxyCache[identifier] = ChatProxy:New(longTag, shortTag, identifier)
     end
     return internal.proxyCache[identifier]
 end
-setmetatable(lib, { __call = function(_, ...) return lib.Create(...) end })
+setmetatable(lib, { __call = function(_, ...) return lib:Create(...) end })
 
 --- @param identifier - the string identifier which was used to register the proxy with the library.
 --- @return the proxy instance for the passed identifier.

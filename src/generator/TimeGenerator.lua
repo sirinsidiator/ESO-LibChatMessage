@@ -11,8 +11,8 @@ function TimeGenerator:New(...)
     return GeneratorBase.New(self, ...)
 end
 
-function TimeGenerator:Initialize()
-    GeneratorBase.Initialize(self)
+function TimeGenerator:Initialize(pathId, formatter)
+    GeneratorBase.Initialize(self, pathId, formatter)
     self:SetBracketFormat(BRACKET_FORMAT)
 end
 
@@ -21,9 +21,6 @@ function TimeGenerator:SetBracketFormat(format)
 end
 
 function TimeGenerator:Generate(timeStamp)
-    return os.date(lib:GetTimePrefixFormat(), timeStamp)
-end
-
-function TimeGenerator:Format(time)
+    local time = os.date(lib:GetTimePrefixFormat(), timeStamp)
     return self.bracketFormat:format(time)
 end

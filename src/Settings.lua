@@ -13,13 +13,14 @@ for label, format in pairs(TIME_FORMAT_MAPPING) do
 end
 
 internal.defaultSettings = {
-    version = 1,
+    version = 2,
     timePrefixEnabled = false,
     timePrefixOnRegularChat = true,
     timePrefixFormat = TIME_FORMAT_AUTO,
     tagPrefixMode = lib.TAG_PREFIX_LONG,
     historyEnabled = false,
     historyMaxAge = 3600,
+    selectedFunctions = {}
 }
 
 -- make a temporary copy until the real settings are available to avoid errors when they are accessed
@@ -57,7 +58,7 @@ function internal:InitializeSettings()
         local handled = false
         local command, arg = zo_strsplit(" ", params)
         command = command and command:lower() or ""
-        arg = arg and arg:lower() or ""
+        arg = arg and arg:lower() or "" -- TODO do not lower arg for select command
 
         if(command == "time") then
             if(arg == "on") then
@@ -139,6 +140,40 @@ function internal:InitializeSettings()
                 chat:Printf("Maximum history age currently set to %d seconds", maxAge)
             end
             handled = true
+        elseif(command == "select") then
+            local path, id = zo_strsplit("=", arg)
+            local registry = internal.selectableFunctionRegistry
+            local selectableFunction = registry:Get(path)
+            if(selectableFunction) then
+            internal.logger:Debug("select", path, id, selectableFunction:HasIdentifier(id))
+                if(selectableFunction:HasIdentifier(id)) then
+                    selectableFunction:SelectFunction(id)
+                    chat:Printf("Select %s for %s", id, path)
+                else
+                    local identifiers = selectableFunction:GetIdentifiers()
+                    local out = {}
+                    out[#out + 1] = string.format("/chatmessage select %s=%s", path, selectableFunction:GetSelectedIdentifier())
+                    out[#out + 1] = "Available addons:"
+                    for i = 1, #identifiers do
+                        out[#out + 1] = string.format("|u100%%:0:  :|u%s", identifiers[i])
+                    end
+                    chat:Print(table.concat(out, "\n"))
+                end
+            else
+                local paths = registry:GetPathsWithAChoice()
+                local out = {}
+                out[#out + 1] = "/chatmessage select <path>=[identifier]"
+                out[#out + 1] = "Select which addons are used to generate or format parts of a message"
+                out[#out + 1] = "Available generator paths which offer a replacement:"
+                for i = 1, #paths do
+                    local path = paths[i]
+                    local func = registry:Get(path)
+                    out[#out + 1] = string.format("|u100%%:0:  :|u%s=%s", path, func:GetSelectedIdentifier())
+                end
+                out[#out + 1] = "Enter just the path to see which addons are available"
+                chat:Print(table.concat(out, "\n"))
+            end
+            handled = true
         end
 
         if(not handled) then
@@ -150,6 +185,7 @@ function internal:InitializeSettings()
             out[#out + 1] = "<tag>|u165%:0:   :|u[off/short/long]|u50%:0::|uControls how a message is tagged"
             out[#out + 1] = "<history>|u50%:0::|u[on/off]|u286%:0:       :|uRestore old chat after login"
             out[#out + 1] = "<age>|u147%:0:   :|u[seconds]|u200%:0:      :|uThe maximum age of restored chat"
+            out[#out + 1] = "<select>|u400%:0:                           :|Choose addons for different tasks"
             out[#out + 1] = "Example: /chatmessage tag short"
             chat:Print(table.concat(out, "\n"))
         end

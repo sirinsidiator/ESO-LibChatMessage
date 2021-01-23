@@ -17,35 +17,42 @@ function ChatNameGenerator:Build(...)
 end
 
 function ChatNameGenerator:Generate(fromName, fromDisplayName, showCSIcon)
-    local name, linkTarget, linkType
+    local name, linkType = self:GetPreferredName(fromName, fromDisplayName)
+
+    -- store the link data so we can return it from Build()
+    self.linkTarget = name
+    self.linkType = linkType
+
+    name = zo_strformat(SI_CHAT_MESSAGE_PLAYER_FORMATTER, name)
+
+    if showCSIcon then
+        name = self:ApplyCustomerServiceIcon(name)
+    end
+
+    return name
+end
+
+function ChatNameGenerator:GetPreferredName(fromName, fromDisplayName)
     local isDecorated = IsDecoratedDisplayName(fromName)
     if not isDecorated and fromDisplayName ~= "" then
         --We have a character name and a display name, so follow the setting
         if ZO_ShouldPreferUserId() then
-            name = fromDisplayName
-            linkTarget = fromDisplayName
-            linkType = DISPLAY_NAME_LINK_TYPE
+            return fromDisplayName, DISPLAY_NAME_LINK_TYPE
         else
-            name = fromName
-            linkTarget = fromName
-            linkType = CHARACTER_LINK_TYPE
+            fromName = zo_strformat(SI_CHAT_MESSAGE_PLAYER_FORMATTER, fromName)
+            return fromName, CHARACTER_LINK_TYPE
         end
     else
         --We either have two display names, or we weren't given a guaranteed display name, so just use the default fromName
-        name = fromName
-        linkTarget = fromName
-        linkType = isDecorated and DISPLAY_NAME_LINK_TYPE or CHARACTER_LINK_TYPE
+        if not isDecorated then
+            fromName = zo_strformat(SI_CHAT_MESSAGE_PLAYER_FORMATTER, fromName)
+            return fromName, CHARACTER_LINK_TYPE
+        else
+            return fromName, DISPLAY_NAME_LINK_TYPE
+        end
     end
-
-    if showCSIcon then
-        name = CUSTOMER_SERVICE_ICON_TEMPLATE:format("%s", name)
-    end
-
-    self.linkTarget = linkTarget
-    self.linkType = linkType
-    return name
 end
 
-function ChatNameGenerator:Format(name)
-    return zo_strformat(SI_CHAT_MESSAGE_PLAYER_FORMATTER, name)
+function ChatNameGenerator:ApplyCustomerServiceIcon(name)
+    return CUSTOMER_SERVICE_ICON_TEMPLATE:format(name)
 end

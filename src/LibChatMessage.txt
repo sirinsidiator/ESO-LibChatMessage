@@ -15,6 +15,9 @@
 
 StartUp.lua
 
+SelectableFunction.lua
+SelectableFunctionRegistry.lua
+
 generator/GeneratorBase.lua
 generator/SimpleGenerator.lua
 generator/TimeGenerator.lua

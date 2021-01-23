@@ -1,6 +1,7 @@
 local lib = LibChatMessage
 local internal = lib.internal
 local callback = lib.callback
+local logger = internal.logger:Create("FormatterBase")
 
 local MESSAGE_INDEX = 1
 local CHANNEL_INDEX = 2
@@ -16,8 +17,9 @@ function FormatterBase:New(...)
     return object
 end
 
--- make sure to call FormatterBase.Initialize(self) when overwriting this function
-function FormatterBase:Initialize()
+-- make sure to call FormatterBase.Initialize(self, pathId) when overwriting this function
+function FormatterBase:Initialize(id)
+    self.id = id
     self.input = {}
     self.output = {}
     self.temp = {}
@@ -38,7 +40,11 @@ end
 
 function FormatterBase:Format(...)
     local eventId, eventTime = lib:GetCurrentFormattingEventMetaData()
-    if not self:CanFormat(eventId, eventTime, ...) or internal:FireCallbacks(callback.FORMATTER_BEGIN, self, eventId, eventTime, ...) then
+    logger:Debug("begin formatting", eventId, eventTime)
+
+    local canFormat = self:CanFormat(eventId, eventTime, ...)
+    if not canFormat or internal:FireCallbacks(callback.FORMATTER_BEGIN, self, eventId, eventTime, ...) then
+        logger:Verbose("do not format message")
         return
     end
 
@@ -50,8 +56,10 @@ function FormatterBase:Format(...)
 
     if(self:GenerateOutput()) then
         internal:FireCallbacks(callback.FORMATTER_OUTPUT, self)
+        logger:Verbose("return formatted output")
         return self:GetOutput()
     end
+    logger:Verbose("no output")
 end
 
 function FormatterBase:CanFormat(eventId, eventTime, ...)

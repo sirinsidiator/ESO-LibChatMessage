@@ -11,8 +11,8 @@ function ConcatGenerator:New(...)
     return GeneratorBase.New(self, ...)
 end
 
-function ConcatGenerator:Initialize(separator)
-    GeneratorBase.Initialize(self)
+function ConcatGenerator:Initialize(pathId, formatter, separator)
+    GeneratorBase.Initialize(self, pathId, formatter)
     self.temp = {}
     self:SetSeparator(separator or DEFAULT_SEPARATOR)
 end

@@ -1,6 +1,7 @@
 local lib = LibChatMessage
 local internal = lib.internal
 local callback = lib.callback
+local logger = internal.logger
 
 local MAX_HISTORY_LENGTH = 10000
 local TRIMMED_HISTORY_LENGTH = 9000
@@ -32,18 +33,22 @@ local function StoreChatEvent(timeStamp, type, ...)
 end
 
 ZO_PreHook(CHAT_ROUTER, "FormatAndAddChatMessage", function(self, eventType, ...)
+    logger:Debug("FormatAndAddChatMessage-Prehook")
     local skipOutput = false
 
     if(not internal.isRestoring) then
+        logger:Debug("not restoring -> store event")
         local eventTime = SetCurrentEventTime()
         StoreChatEvent(eventTime, eventType, ...)
         -- we will replay all events once the library is ready, so we skip printing them during startup
-        skipOutput = internal.isReady
+        skipOutput = not internal.isReady
     end
 
     if skipOutput then
+        logger:Debug("not ready -> skip")
         return true
     else
+        logger:Debug("ready -> set id and continue")
         SetCurrentEventId()
     end
 end)

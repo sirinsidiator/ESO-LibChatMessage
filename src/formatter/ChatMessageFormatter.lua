@@ -1,6 +1,9 @@
 local lib = LibChatMessage
 local internal = lib.internal
 local FormatterBase = internal.class.FormatterBase
+local logger = internal.logger:Create("ChatMessageFormatter")
+
+local PATH_ID_TEMPLATE = "%s.%s"
 
 local ChatMessageFormatter = FormatterBase:Subclass()
 internal.class.ChatMessageFormatter = ChatMessageFormatter
@@ -9,38 +12,31 @@ function ChatMessageFormatter:New(...)
     return FormatterBase.New(self, ...)
 end
 
-function ChatMessageFormatter:Initialize()
-    FormatterBase.Initialize(self)
+function ChatMessageFormatter:Initialize(pathId)
+    FormatterBase.Initialize(self, pathId)
 
     local generators = self.generators
-    generators.time  = internal.class.TimeGenerator:New()
-    generators.name  = internal.class.ChatNameGenerator:New()
-    generators.nameLink  = internal.class.PlayerLinkGenerator:New()
-    generators.channelName  = internal.class.SimpleGenerator:New()
-    generators.channelLink  = internal.class.SimpleGenerator:New()
-    generators.text  = internal.class.SimpleGenerator:New()
-    generators.message  = internal.class.SimpleGenerator:New()
-    generators.output = internal.class.ConcatGenerator:New()
-
-    -- we replace the functions, otherwise we'd have to create a new class for one method which is only used here
-    generators.channelName.Generate = function(generator, channelId)
+    generators.time  = internal.class.TimeGenerator:New(PATH_ID_TEMPLATE:format(pathId, "time"), self)
+    generators.name  = internal.class.ChatNameGenerator:New(PATH_ID_TEMPLATE:format(pathId, "name"), self)
+    generators.nameLink  = internal.class.PlayerLinkGenerator:New(PATH_ID_TEMPLATE:format(pathId, "namelink"), self)
+    generators.channelName  = internal.class.SimpleGenerator:New(PATH_ID_TEMPLATE:format(pathId, "channel"), self, function(generator, channelId)
         return GetChannelName(channelId)
-    end
-
-    generators.channelLink.Generate = function(generator, channelName)
+    end)
+    generators.channelLink  = internal.class.SimpleGenerator:New(PATH_ID_TEMPLATE:format(pathId, "channellink"), self, function(generator, channelName)
         return ZO_LinkHandler_CreateChannelLink(channelName)
-    end
-
-    generators.text.Format = function(generator, text)
+    end)
+    generators.text  = internal.class.SimpleGenerator:New(PATH_ID_TEMPLATE:format(pathId, "text"), self, nil, function(generator, text)
         if self.channelInfo.formatMessage then
             return zo_strformat(SI_CHAT_MESSAGE_FORMATTER, text)
         end
         return text
-    end
-
-    generators.message.Generate = function(generator, template, ...)
+    end)
+    generators.message  = internal.class.SimpleGenerator:New(PATH_ID_TEMPLATE:format(pathId, "message"), self, function(generator, template, ...)
         return template:format(...)
-    end
+    end)
+    generators.output = internal.class.ConcatGenerator:New(PATH_ID_TEMPLATE:format(pathId, "output"), self)
+
+    logger:Verbose("Initialized ChatMessageFormatter '%s'", pathId)
 end
 
 function ChatMessageFormatter:CanFormat(eventId, eventTime, messageType, fromName, text, isFromCustomerService, fromDisplayName)
@@ -102,6 +98,7 @@ function ChatMessageFormatter:GenerateOutput()
     self:SetSubject(input.fromDisplayName)
     self:SetRawMessage(input.text)
 
+    logger:Verbose("generated output")
     if temp.output then return true end
     return false
 end

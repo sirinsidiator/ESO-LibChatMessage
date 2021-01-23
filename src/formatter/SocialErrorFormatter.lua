@@ -6,7 +6,7 @@ local SocialErrorFormatter = TaggedMessageFormatter:Subclass()
 internal.class.SocialErrorFormatter = SocialErrorFormatter
 
 function SocialErrorFormatter:New(...)
-    return TaggedMessageFormatter.New(self)
+    return TaggedMessageFormatter.New(self, ...)
 end
 
 function SocialErrorFormatter:CanFormat(eventId, eventTime, error)

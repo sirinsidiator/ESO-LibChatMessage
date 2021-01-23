@@ -9,18 +9,14 @@ function TaggedMessageFormatter:New(...)
     return FormatterBase.New(self, ...)
 end
 
-function TaggedMessageFormatter:Initialize(longTag, shortTag)
-    FormatterBase.Initialize(self)
+function TaggedMessageFormatter:Initialize(id, longTag, shortTag)
+    FormatterBase.Initialize(self, id)
 
     local generators = self.generators
-    generators.time  = internal.class.TimeGenerator:New()
-    generators.tag = internal.class.TagGenerator:New(longTag, shortTag)
-    generators.message  = internal.class.SimpleGenerator:New()
-    generators.output = internal.class.ConcatGenerator:New()
-
-    -- most subclasses will want to generate a different message,
-    -- so we replace the function to avoid having to create new generator classes for everything
-    self.generators.message.Generate = function() return self:GenerateMessage() end
+    generators.time  = internal.class.TimeGenerator:New("time", self)
+    generators.tag = internal.class.TagGenerator:New("tag", self, longTag, shortTag)
+    generators.message  = internal.class.SimpleGenerator:New("message", self, function() return self:GenerateMessage() end)
+    generators.output = internal.class.ConcatGenerator:New("output", self)
 end
 
 function TaggedMessageFormatter:CanFormat(eventId, eventTime, message)
