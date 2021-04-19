@@ -95,23 +95,22 @@ local messageFormatters = CHAT_ROUTER:GetRegisteredMessageFormatters()
 local newFormatter = {}
 do
     local redirect = {}
-    setmetatable(redirect, newFormatter)
+    setmetatable(newFormatter, redirect)
     redirect.__index = function(_, key)
         -- Called, if newFormatter has no entry: use original.
         return messageFormatters[key]
     end
-    SecurePostHook(CHAT_ROUTER, "FormatAndAddChatMessage", function(self)
-        -- Restore Formatters for addons
-        self.registeredMessageFormatters = messageFormatters
-    end)
     local orgOnChatEvent = CHAT_ROUTER.FormatAndAddChatMessage
-    function CHAT_ROUTER.FormatAndAddChatMessage(self, ...)
+    ZO_PreHook(CHAT_ROUTER, "FormatAndAddChatMessage", function(self)
         if IsChatSystemAvailableForCurrentPlatform() then
             -- Replace Formatters for ZOS
             self.registeredMessageFormatters = newFormatter
         end
-        return orgOnChatEvent(self, ...)
-    end
+    end)
+    SecurePostHook(CHAT_ROUTER, "FormatAndAddChatMessage", function(self)
+        -- Restore Formatters for addons
+        self.registeredMessageFormatters = messageFormatters
+    end)
 end
 
 local function dummyPreHook(...) return ... end
