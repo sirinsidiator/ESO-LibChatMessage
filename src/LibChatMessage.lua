@@ -130,10 +130,11 @@ end
 
 ----------------------------------------------
 
-UNKNOWN_LINK_TYPE = "unknown"
+local UNKNOWN_LINK_TYPE = "unknown"
+lib.UNKNOWN_LINK_TYPE = UNKNOWN_LINK_TYPE
 local LINK_GMATCH_PATTERN = "||H(%d):(.-):(.-)||h(.-)||h"
 local function unknownTypeReformatter(linkStyle, linkType, data, displayText)
-    return string.format("|H%i:%s:%s|h%s|h", linkStyle, UNKNOWN_LINK_TYPE, linkType, displayText)
+    return ZO_LinkHandler_CreateLinkWithoutBrackets(displayText, nil, UNKNOWN_LINK_TYPE, linkType)
 end
 local function decodeCustomLinks(linkStyle, linkType, data, displayText)
     local reformatter = lib.registeredChatLinks[linkType] or unknownTypeReformatter
@@ -147,11 +148,11 @@ local function customLinkFormatter(messageType, fromName, text, ...)
 end
 
 local function defaultReformatter(linkStyle, linkType, data, displayText)
-    return string.format("|H%i:%s:%s|h[%s]|h", linkStyle, linkType, data, displayText)
+    return ZO_LinkHandler_CreateLinkWithFormat(displayText, nil, linkType, linkStyle, data)
 end
 
 function lib:RegisterCustomChatLink(linkType, optionalReformatter)
-    assert(not optionalReformatter or type(optionalReformatter) == "function", "Reformatter needs to be a function")
+    assert(not optionalReformatter or type(optionalReformatter) == "function", "Reformatter has to be a function")
     self.registeredChatLinks[linkType] = optionalReformatter or defaultReformatter
 	ZO_VALID_LINK_TYPES_CHAT[linkType] = true
 end
@@ -609,10 +610,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         end
         if button == MOUSE_BUTTON_INDEX_LEFT then
             local unknownType = ...
-			PlaySound(SOUNDS.DEFAULT_CLICK)
-            ClearTooltip(PopupTooltip)
-            InitializeTooltip(PopupTooltip)
-            PopupTooltip:AddLine(zo_strformat(LIB_CHATMESSAGE_UNKNOWN_DESCRIPTION, unknownType))
+            ZO_Alert(EVENT_UI_ERROR, SOUNDS.INVENTORY_ITEM_LOCKED, zo_strformat(LIB_CHATMESSAGE_UNKNOWN_DESCRIPTION, unknownType))
             return true
         end
     end
