@@ -609,7 +609,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         end
         if button == MOUSE_BUTTON_INDEX_LEFT then
             local unknownType = ...
-            ZO_Alert(EVENT_UI_ERROR, SOUNDS.INVENTORY_ITEM_LOCKED, zo_strformat(LIB_CHATMESSAGE_UNKNOWN_DESCRIPTION, unknownType))
+            ZO_Alert(EVENT_UI_ERROR, SOUNDS.NEGATIVE_CLICK, zo_strformat(LIB_CHATMESSAGE_UNKNOWN_DESCRIPTION, unknownType))
             return true
         end
     end
