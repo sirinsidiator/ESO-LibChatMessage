@@ -65,10 +65,41 @@ local function GetTimeStampForEvent()
     return GetTimeStamp(), false
 end
 
+local MAX_SAVE_DATA_LENGTH = 1999 -- buffer length used by ZOS
+local function WriteToSavedVariable(value)
+    local output = value
+    if type(value) == "string" then
+        local byteLength = #value
+        if(byteLength > MAX_SAVE_DATA_LENGTH) then
+            output = {}
+            local startPos = 1
+            local endPos = startPos + MAX_SAVE_DATA_LENGTH - 1
+            while startPos <= byteLength do
+                output[#output + 1] = value:sub(startPos, endPos)
+                startPos = endPos + 1
+                endPos = startPos + MAX_SAVE_DATA_LENGTH - 1
+            end
+        end
+    end
+    return output
+end
+
+local function ReadFromSavedVariable(value)
+    if(type(value) == "table") then
+        return table.concat(value, "")
+    end
+    return value
+end
+
 local function StoreChatEvent(timeStamp, type, ...)
     if(not lib.chatHistoryActive) then return end
+    local entry = { timeStamp, type }
+    for i = 1, select("#", ...) do
+        entry[2 + i] = WriteToSavedVariable(select(i, ...))
+    end
+
     local chatHistory = lib.chatHistory
-    chatHistory[#chatHistory + 1] = {timeStamp, type, ...}
+    chatHistory[#chatHistory + 1] = entry
     if(#chatHistory > MAX_HISTORY_LENGTH) then
         local newHistory = {}
         for i = #chatHistory - TRIMMED_HISTORY_LENGTH, #chatHistory do
@@ -557,6 +588,15 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
 
     lib.chatHistoryActive = lib.settings.historyEnabled
 
+    local function RestoreChatHistoryEntry(entry, timeStamp)
+        lib.nextEventTimeStamp = entry[TIMESTAMP_INDEX]
+        local args = {}
+        for i = TIMESTAMP_INDEX + 1, #entry do
+            args[#args + 1] = ReadFromSavedVariable(entry[i])
+        end
+        CHAT_ROUTER:FormatAndAddChatMessage(unpack(args))
+    end
+
     local function RestoreChatHistory()
         if(not lib.chatHistoryActive) then return end
         lib:ClearChat()
@@ -564,14 +604,12 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         local newHistory = {}
         local oldHistory = LibChatMessageHistory[lib.saveDataKey]
         local tempHistory = lib.chatHistory
+
         if(oldHistory) then
             local ageThreshold = GetTimeStamp() - lib.settings.historyMaxAge
             for i = 1, #oldHistory do
-                local timeStamp = oldHistory[i][TIMESTAMP_INDEX]
-                if(timeStamp > ageThreshold) then
-                    newHistory[#newHistory + 1] = oldHistory[i]
-                    lib.nextEventTimeStamp = timeStamp
-                    CHAT_ROUTER:FormatAndAddChatMessage(select(TIMESTAMP_INDEX + 1, unpack(oldHistory[i])))
+                if(oldHistory[i][TIMESTAMP_INDEX] > ageThreshold) then
+                    newHistory[#newHistory + 1] = RestoreChatHistoryEntry(oldHistory[i])
                 end
             end
         end
@@ -583,9 +621,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
         end
 
         for i = 1, #tempHistory do
-            newHistory[#newHistory + 1] = tempHistory[i]
-            lib.nextEventTimeStamp = tempHistory[i][TIMESTAMP_INDEX]
-            CHAT_ROUTER:FormatAndAddChatMessage(select(TIMESTAMP_INDEX + 1, unpack(tempHistory[i])))
+            newHistory[#newHistory + 1] = RestoreChatHistoryEntry(tempHistory[i])
         end
 
         lib.nextEventTimeStamp = nil
