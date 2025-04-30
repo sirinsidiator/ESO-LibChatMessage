@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2025 sirinsidiator
+--
+-- SPDX-License-Identifier: Artistic-2.0
+
 local strings = {
     ["LIB_CHATMESSAGE_UNKNOWN_DESCRIPTION"] = 'Der Chat-Link "<<1>>" wird zurzeit nicht unterstützt.'
 }
