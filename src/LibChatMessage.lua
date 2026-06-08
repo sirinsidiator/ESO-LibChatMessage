@@ -331,7 +331,8 @@ setmetatable(lib, { __call = function(_, ...) return lib.Create(...) end })
 
 --- Clears all chat windows
 function lib:ClearChat()
-    local activeWindows = CHAT_SYSTEM.windowPool:GetActiveObjects()
+    if not IsKeyboardUISupported() then return end
+    local activeWindows = KEYBOARD_CHAT_SYSTEM.windowPool:GetActiveObjects()
     for _, window in pairs(activeWindows) do
         window.buffer:Clear()
     end
@@ -655,7 +656,7 @@ EVENT_MANAGER:RegisterForEvent(LIB_IDENTIFIER, EVENT_ADD_ON_LOADED, function(eve
     end
 	LINK_HANDLER:RegisterCallback(LINK_HANDLER.LINK_CLICKED_EVENT, OnLinkClicked)
 	LINK_HANDLER:RegisterCallback(LINK_HANDLER.LINK_MOUSE_UP_EVENT, OnLinkClicked)
-    if not IsConsoleUI() then
+    if IsKeyboardUISupported() then
     	KEYBOARD_CHAT_SYSTEM:GetEditControl():SetAllowMarkupType(ALLOW_MARKUP_TYPE_ALL)
     end
 end)
