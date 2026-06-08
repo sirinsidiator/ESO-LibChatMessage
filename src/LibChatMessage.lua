@@ -182,7 +182,7 @@ local function customLinkFormatter(messageType, fromName, text, ...)
 end
 
 local function defaultReformatter(linkStyle, linkType, data, displayText)
-    return ZO_LinkHandler_CreateLinkWithFormat(displayText, nil, linkType, linkStyle, data)
+    return ZO_LinkHandler_CreateLink(displayText, nil, linkType, linkStyle, data)
 end
 
 function lib:RegisterCustomChatLink(linkType, optionalReformatter)
